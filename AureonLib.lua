@@ -1,25 +1,61 @@
 -- Aureon UI Library
 -- Based on the provided Sirius code, fully reconstructed and organized.
--- Renamed from Sirius to Aureon.
--- Split into modular functions for better organization.
--- Added page transition animations: old page slides out left, new page slides in from right.
--- Made functional: Buttons navigate between pages with animations.
--- Dynamic time update using os.date for local timezone, updates every minute.
+-- Centered GUI with proper AnchorPoint and Position settings.
+-- Added drag functionality for the main GUI frame.
+-- Page transition animations: old page slides out left, new page slides in from right.
+-- Dynamic time update using os.date for local timezone.
 -- All UI elements from the provided document are included.
--- Interactive elements have example print callbacks; can be extended.
--- Library can be loaded via loadstring(game:HttpGet("url"))()
+-- Library can be loaded via loadstring from GitHub.
+-- URL: https://raw.githubusercontent.com/V1trixz/AureonLib/refs/heads/main/AureonLib.lua
 
 local Aureon = {}
 
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
 
 -- Helper for tweens
 local function createTween(instance, tweenInfo, properties)
     local tween = TweenService:Create(instance, tweenInfo, properties)
     tween:Play()
     return tween
+end
+
+-- Drag functionality
+local function makeDraggable(frame)
+    local dragging = false
+    local dragInput, dragStart, startPos
+
+    local function updateInput(input)
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            updateInput(input)
+        end
+    end)
 end
 
 -- Main function to create the UI
@@ -30,8 +66,27 @@ function Aureon:CreateUI()
     screenGui.Parent = player:WaitForChild("PlayerGui")
     screenGui.ResetOnSpawn = false
 
+    -- Main frame (centered and draggable)
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 600, 0, 400)
+    mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    mainFrame.BackgroundTransparency = 0.1
+    mainFrame.Parent = screenGui
+
+    local UICorner = Instance.new("UICorner")
+    UICorner.Parent = mainFrame
+
+    local UIStroke = Instance.new("UIStroke")
+    UIStroke.Parent = mainFrame
+
+    -- Make main frame draggable
+    makeDraggable(mainFrame)
+
     -- SmartBar (bottom navigation)
-    local smartBar = self:CreateSmartBar(screenGui)
+    local smartBar = self:CreateSmartBar(mainFrame)
 
     -- Pages container
     local pages = Instance.new("Frame")
@@ -39,7 +94,7 @@ function Aureon:CreateUI()
     pages.Size = UDim2.new(1, 0, 1, -70)
     pages.Position = UDim2.new(0, 0, 0, 0)
     pages.BackgroundTransparency = 1
-    pages.Parent = screenGui
+    pages.Parent = mainFrame
 
     -- Create pages
     local homePage = self:CreateHomePage(pages)
@@ -55,7 +110,7 @@ function Aureon:CreateUI()
     local allPages = {homePage, characterPage, scriptsPage, playerlistPage, musicPage, settingsPage, notifications, customScriptPrompt}
     for _, page in ipairs(allPages) do
         page.Visible = false
-        page.Position = UDim2.new(1, 0, 0, 0) -- Start offscreen right
+        page.Position = UDim2.new(1, 0, 0, 0)
     end
 
     -- Current page
@@ -67,6 +122,7 @@ function Aureon:CreateUI()
 
         if currentPage then
             createTween(currentPage, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {Position = UDim2.new(-1, 0, 0, 0)})
+            wait(0.5)
             currentPage.Visible = false
         end
 
@@ -85,11 +141,15 @@ function Aureon:CreateUI()
     smartBar.Buttons.Music.Interact.MouseButton1Click:Connect(function() switchPage(musicPage) end)
     smartBar.Buttons.Settings.Interact.MouseButton1Click:Connect(function() switchPage(settingsPage) end)
 
-    -- Show home by default with animation
+    -- Show home by default
     switchPage(homePage)
 
     -- Setup time
     self:SetupTime(smartBar.Time)
+
+    -- Animate main frame entry
+    mainFrame.Position = UDim2.new(0.5, 0, 1.5, 0)
+    createTween(mainFrame, TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, 0, 0.5, 0)})
 
     return screenGui
 end
@@ -98,8 +158,8 @@ end
 function Aureon:CreateSmartBar(parent)
     local SmartBar = Instance.new("Frame")
     SmartBar.Name = "SmartBar"
-    SmartBar.Size = UDim2.new(0, 581, 0, 70)
-    SmartBar.Position = UDim2.new(0.5, 0, 1, -12)
+    SmartBar.Size = UDim2.new(1, 0, 0, 70)
+    SmartBar.Position = UDim2.new(0, 0, 1, -70)
     SmartBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
     SmartBar.Parent = parent
 
@@ -120,7 +180,7 @@ function Aureon:CreateSmartBar(parent)
     local Time = Instance.new("TextLabel")
     Time.Name = "Time"
     Time.Size = UDim2.new(0, 60, 0, 19)
-    Time.Position = UDim2.new(0.07237, 0, 0.5, 0)
+    Time.Position = UDim2.new(0.072, 0, 0.5, 0)
     Time.BackgroundTransparency = 1
     Time.TextColor3 = Color3.fromRGB(255, 255, 255)
     Time.Text = os.date("%H:%M")
@@ -139,10 +199,6 @@ function Aureon:CreateSmartBar(parent)
     self:CreateNavButton(Buttons, "Playerlist", UDim2.new(0.4, 0, 0.5, 0), "rbxassetid://9080475789")
     self:CreateNavButton(Buttons, "Music", UDim2.new(0.475, 0, 0.5, 0), "rbxassetid://9080473484")
     self:CreateNavButton(Buttons, "Settings", UDim2.new(0.94, 0, 0.5, 0), "rbxassetid://3605022185")
-
-    -- Animate entry
-    SmartBar.Position = UDim2.new(0.5, 0, 1.5, 0)
-    createTween(SmartBar, TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, 0, 1, -12)})
 
     return SmartBar
 end
@@ -209,7 +265,7 @@ function Aureon:SetupTime(timeLabel)
     end)
 end
 
--- Create Home Page (assumed basic, as not fully detailed in document)
+-- Create Home Page
 function Aureon:CreateHomePage(parent)
     local Home = Instance.new("Frame")
     Home.Name = "HomePage"
@@ -217,12 +273,12 @@ function Aureon:CreateHomePage(parent)
     Home.BackgroundTransparency = 1
     Home.Parent = parent
 
-    -- Add content if any from document; here basic placeholder
     local Label = Instance.new("TextLabel")
     Label.Size = UDim2.new(0.5, 0, 0.1, 0)
     Label.Position = UDim2.new(0.25, 0, 0.4, 0)
     Label.BackgroundTransparency = 1
     Label.Text = "Welcome to Aureon Home"
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
     Label.Parent = Home
 
     return Home
@@ -233,42 +289,38 @@ function Aureon:CreateCharacterPage(parent)
     local Character = Instance.new("Frame")
     Character.Name = "CharacterPage"
     Character.Size = UDim2.new(1, 0, 1, 0)
-    Character.BackgroundTransparency = 1
+    Character.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    Character.BackgroundTransparency = 0.2
     Character.Parent = parent
 
-    -- From document
+    local UICorner = Instance.new("UICorner")
+    UICorner.Parent = Character
+
     local Title = Instance.new("TextLabel")
     Title.Size = UDim2.new(0, 180, 0, 18)
     Title.Position = UDim2.new(0.238, 0, 0.102, 0)
     Title.BackgroundTransparency = 1
     Title.Text = "Character"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
     Title.Parent = Character
-
-    -- Add more elements as per document
 
     return Character
 end
 
--- Create Scripts Page (ScriptSearch from document)
+-- Create Scripts Page
 function Aureon:CreateScriptsPage(parent)
     local Scripts = Instance.new("Frame")
     Scripts.Name = "ScriptsPage"
-    Scripts.Size = UDim2.new(0, 580, 0, 529)
-    Scripts.Position = UDim2.new(0.5, 0, 0.5, 0)
-    Scripts.AnchorPoint = UDim2.new(0.5, 0.5)
-    Scripts.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Scripts.Size = UDim2.new(1, 0, 1, 0)
+    Scripts.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    Scripts.BackgroundTransparency = 0.2
     Scripts.Parent = parent
-
-    local UIGradient = Instance.new("UIGradient")
-    UIGradient.Parent = Scripts
 
     local UICorner = Instance.new("UICorner")
     UICorner.Parent = Scripts
 
-    local UIStroke = Instance.new("UIStroke")
-    local UIGradientStroke = Instance.new("UIGradient")
-    UIGradientStroke.Parent = UIStroke
-    UIStroke.Parent = Scripts
+    local UIGradient = Instance.new("UIGradient")
+    UIGradient.Parent = Scripts
 
     local Title = Instance.new("TextLabel")
     Title.Name = "Title"
@@ -276,6 +328,7 @@ function Aureon:CreateScriptsPage(parent)
     Title.Position = UDim2.new(0.141, 0, 0.055, 0)
     Title.BackgroundTransparency = 1
     Title.Text = "Script Search"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
     Title.Parent = Scripts
 
     local Icon = Instance.new("ImageButton")
@@ -286,7 +339,6 @@ function Aureon:CreateScriptsPage(parent)
     Icon.Image = "rbxassetid://9080478424"
     Icon.Parent = Scripts
 
-    -- Add search bar, list, etc. from document
     local Search = Instance.new("Frame")
     Search.Name = "Search"
     Search.Size = UDim2.new(0, 400, 0, 30)
@@ -302,6 +354,7 @@ function Aureon:CreateScriptsPage(parent)
     TextBox.Position = UDim2.new(0, 30, 0, 0)
     TextBox.BackgroundTransparency = 1
     TextBox.Text = ""
+    TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     TextBox.Parent = Search
 
     local List = Instance.new("ScrollingFrame")
@@ -314,14 +367,14 @@ function Aureon:CreateScriptsPage(parent)
     local UIListLayout = Instance.new("UIListLayout")
     UIListLayout.Parent = List
 
-    -- Template for scripts
     local Template = Instance.new("Frame")
     Template.Name = "Template"
     Template.Size = UDim2.new(1, 0, 0, 100)
     Template.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    Template.Parent = List  -- For example
+    Template.Parent = List
 
-    -- Add all from document: title, description, author, tags, execute, etc.
+    local UICornerTemplate = Instance.new("UICorner")
+    UICornerTemplate.Parent = Template
 
     local ScriptTitle = Instance.new("TextLabel")
     ScriptTitle.Name = "ScriptTitle"
@@ -329,6 +382,7 @@ function Aureon:CreateScriptsPage(parent)
     ScriptTitle.Position = UDim2.new(0.037, 0, 0.161, 0)
     ScriptTitle.BackgroundTransparency = 1
     ScriptTitle.Text = "scriptname"
+    ScriptTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     ScriptTitle.Parent = Template
 
     local ScriptDescription = Instance.new("TextLabel")
@@ -337,6 +391,7 @@ function Aureon:CreateScriptsPage(parent)
     ScriptDescription.Position = UDim2.new(0.037, 0, 0.282, 0)
     ScriptDescription.BackgroundTransparency = 1
     ScriptDescription.Text = "description"
+    ScriptDescription.TextColor3 = Color3.fromRGB(255, 255, 255)
     ScriptDescription.Parent = Template
 
     local ScriptAuthor = Instance.new("TextLabel")
@@ -345,6 +400,7 @@ function Aureon:CreateScriptsPage(parent)
     ScriptAuthor.Position = UDim2.new(0.037, 0, 0.855, 0)
     ScriptAuthor.BackgroundTransparency = 1
     ScriptAuthor.Text = "uploaded by unknown"
+    ScriptAuthor.TextColor3 = Color3.fromRGB(255, 255, 255)
     ScriptAuthor.Parent = Template
 
     local Tags = Instance.new("Frame")
@@ -357,7 +413,6 @@ function Aureon:CreateScriptsPage(parent)
     local UIListLayoutTags = Instance.new("UIListLayout")
     UIListLayoutTags.Parent = Tags
 
-    -- Verified tag
     local Verified = Instance.new("Frame")
     Verified.Name = "Verified"
     Verified.Size = UDim2.new(0, 140, 1, 0)
@@ -373,9 +428,8 @@ function Aureon:CreateScriptsPage(parent)
     TitleVerified.Position = UDim2.new(0.5, 0, 0.5, 0)
     TitleVerified.BackgroundTransparency = 1
     TitleVerified.Text = "Verified Creator"
+    TitleVerified.TextColor3 = Color3.fromRGB(255, 255, 255)
     TitleVerified.Parent = Verified
-
-    -- Similar for Review, Patched
 
     local Execute = Instance.new("TextButton")
     Execute.Name = "Execute"
@@ -383,13 +437,14 @@ function Aureon:CreateScriptsPage(parent)
     Execute.Position = UDim2.new(0.912, 0, 0.845, 0)
     Execute.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
     Execute.Text = "Run"
+    Execute.TextColor3 = Color3.fromRGB(255, 255, 255)
     Execute.Parent = Template
 
     local UICornerExecute = Instance.new("UICorner")
     UICornerExecute.Parent = Execute
 
     Execute.MouseButton1Click:Connect(function()
-        print("Execute script")
+        print("Execute script: " .. ScriptTitle.Text)
     end)
 
     local NoScriptsTitle = Instance.new("TextLabel")
@@ -398,6 +453,7 @@ function Aureon:CreateScriptsPage(parent)
     NoScriptsTitle.Position = UDim2.new(0.5, 0, 0.483, 0)
     NoScriptsTitle.BackgroundTransparency = 1
     NoScriptsTitle.Text = "No Scripts Found"
+    NoScriptsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     NoScriptsTitle.Parent = Scripts
 
     local NoScriptsDesc = Instance.new("TextLabel")
@@ -406,6 +462,7 @@ function Aureon:CreateScriptsPage(parent)
     NoScriptsDesc.Position = UDim2.new(0.5, 0, 0.515, 0)
     NoScriptsDesc.BackgroundTransparency = 1
     NoScriptsDesc.Text = "Try searching with a different query"
+    NoScriptsDesc.TextColor3 = Color3.fromRGB(255, 255, 255)
     NoScriptsDesc.Parent = Scripts
 
     return Scripts
@@ -416,15 +473,19 @@ function Aureon:CreatePlayerlistPage(parent)
     local Playerlist = Instance.new("Frame")
     Playerlist.Name = "PlayerlistPage"
     Playerlist.Size = UDim2.new(1, 0, 1, 0)
-    Playerlist.BackgroundTransparency = 1
+    Playerlist.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    Playerlist.BackgroundTransparency = 0.2
     Playerlist.Parent = parent
 
-    -- Add content from document if available; placeholder
+    local UICorner = Instance.new("UICorner")
+    UICorner.Parent = Playerlist
+
     local Label = Instance.new("TextLabel")
     Label.Size = UDim2.new(0.5, 0, 0.1, 0)
     Label.Position = UDim2.new(0.25, 0, 0.4, 0)
     Label.BackgroundTransparency = 1
     Label.Text = "Playerlist"
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
     Label.Parent = Playerlist
 
     return Playerlist
@@ -436,15 +497,15 @@ function Aureon:CreateMusicPage(parent)
     Music.Name = "MusicPage"
     Music.Size = UDim2.new(0, 300, 0, 379)
     Music.Position = UDim2.new(0.5, 0, 0.5, 0)
-    Music.AnchorPoint = UDim2.new(0.5, 0.5)
-    Music.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Music.AnchorPoint = Vector2.new(0.5, 0.5)
+    Music.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
     Music.Parent = parent
-
-    local UIGradient = Instance.new("UIGradient")
-    UIGradient.Parent = Music
 
     local UICorner = Instance.new("UICorner")
     UICorner.Parent = Music
+
+    local UIGradient = Instance.new("UIGradient")
+    UIGradient.Parent = Music
 
     local UIStroke = Instance.new("UIStroke")
     local UIGradientStroke = Instance.new("UIGradient")
@@ -457,6 +518,7 @@ function Aureon:CreateMusicPage(parent)
     Title.Position = UDim2.new(0.172, 0, 0.055, 0)
     Title.BackgroundTransparency = 1
     Title.Text = "Music"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
     Title.Parent = Music
 
     local Icon = Instance.new("ImageButton")
@@ -501,6 +563,7 @@ function Aureon:CreateMusicPage(parent)
     FileName.Position = UDim2.new(0.055, 0, 0.3, 0)
     FileName.BackgroundTransparency = 1
     FileName.Text = "songname"
+    FileName.TextColor3 = Color3.fromRGB(255, 255, 255)
     FileName.Parent = Template
 
     local Duration = Instance.new("TextLabel")
@@ -509,6 +572,7 @@ function Aureon:CreateMusicPage(parent)
     Duration.Position = UDim2.new(0.729, 0, 0.5, 0)
     Duration.BackgroundTransparency = 1
     Duration.Text = "2:41"
+    Duration.TextColor3 = Color3.fromRGB(255, 255, 255)
     Duration.Parent = Template
 
     local Close = Instance.new("ImageButton")
@@ -525,6 +589,7 @@ function Aureon:CreateMusicPage(parent)
     QueueTitle.Position = UDim2.new(0.007, 0, -0.073, 0)
     QueueTitle.BackgroundTransparency = 1
     QueueTitle.Text = "QUEUE"
+    QueueTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     QueueTitle.Parent = Queue
 
     local Add = Instance.new("Frame")
@@ -573,8 +638,6 @@ function Aureon:CreateMusicPage(parent)
     Next.Image = "rbxassetid://3926307971"
     Next.Parent = Menu
 
-    -- Add more from truncated if needed
-
     return Music
 end
 
@@ -582,10 +645,9 @@ end
 function Aureon:CreateSettingsPage(parent)
     local Settings = Instance.new("Frame")
     Settings.Name = "SettingsPage"
-    Settings.Size = UDim2.new(0, 613, 0, 384)
-    Settings.Position = UDim2.new(0.5, 0, 0.5, 0)
-    Settings.AnchorPoint = UDim2.new(0.5, 0.5)
-    Settings.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Settings.Size = UDim2.new(1, 0, 1, 0)
+    Settings.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    Settings.BackgroundTransparency = 0.2
     Settings.Parent = parent
 
     local UICorner = Instance.new("UICorner")
@@ -596,6 +658,7 @@ function Aureon:CreateSettingsPage(parent)
     Title.Position = UDim2.new(0.091, 0, 0.057, 0)
     Title.BackgroundTransparency = 1
     Title.Text = "Detections"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
     Title.Parent = Settings
 
     local Shadow = Instance.new("ImageLabel")
@@ -637,6 +700,7 @@ function Aureon:CreateSettingsPage(parent)
     TitleTemplate.Position = UDim2.new(0.183, 0, 0.74, 0)
     TitleTemplate.BackgroundTransparency = 1
     TitleTemplate.Text = "GENERAL"
+    TitleTemplate.TextColor3 = Color3.fromRGB(255, 255, 255)
     TitleTemplate.Parent = Template
 
     local ShadowTemplate = Instance.new("ImageLabel")
@@ -658,6 +722,7 @@ function Aureon:CreateSettingsPage(parent)
     Subtitle.Position = UDim2.new(0.045, 0, 0.112, 0)
     Subtitle.BackgroundTransparency = 1
     Subtitle.Text = "The basic and essential settings that you can quickly modify to tweak your experience"
+    Subtitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     Subtitle.Parent = Settings
 
     local Back = Instance.new("ImageButton")
@@ -699,6 +764,7 @@ function Aureon:CreateSettingsPage(parent)
     TitleSwitch.Position = UDim2.new(0, 18, 0, 12)
     TitleSwitch.BackgroundTransparency = 1
     TitleSwitch.Text = "Switch"
+    TitleSwitch.TextColor3 = Color3.fromRGB(255, 255, 255)
     TitleSwitch.Parent = SwitchTemplate
 
     local UIStrokeSwitch = Instance.new("UIStroke")
@@ -740,6 +806,7 @@ function Aureon:CreateSettingsPage(parent)
     DescriptionSwitch.Position = UDim2.new(0, 18, 0, 30)
     DescriptionSwitch.BackgroundTransparency = 1
     DescriptionSwitch.Text = "Button"
+    DescriptionSwitch.TextColor3 = Color3.fromRGB(255, 255, 255)
     DescriptionSwitch.Parent = SwitchTemplate
 
     local LicenseDisplay = Instance.new("TextLabel")
@@ -747,6 +814,7 @@ function Aureon:CreateSettingsPage(parent)
     LicenseDisplay.Position = UDim2.new(0, 18, 0, 13)
     LicenseDisplay.BackgroundTransparency = 1
     LicenseDisplay.Text = "PRO FEATURE"
+    LicenseDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
     LicenseDisplay.Parent = SwitchTemplate
 
     local UIListLayoutPage = Instance.new("UIListLayout")
@@ -756,40 +824,6 @@ function Aureon:CreateSettingsPage(parent)
     Placeholder.Size = UDim2.new(0, 0, 0, 0)
     Placeholder.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
     Placeholder.Parent = TemplatePage
-
-    local InputTemplate = Instance.new("Frame")
-    InputTemplate.Name = "InputTemplate"
-    InputTemplate.Size = UDim2.new(0, 558, 0, 40)
-    InputTemplate.Position = UDim2.new(0.047, 0, 0, 0)
-    InputTemplate.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
-    InputTemplate.Parent = TemplatePage
-
-    local UICornerInput = Instance.new("UICorner")
-    UICornerInput.Parent = InputTemplate
-
-    local UIStrokeInput = Instance.new("UIStroke")
-    UIStrokeInput.Parent = InputTemplate
-
-    local TitleInput = Instance.new("TextLabel")
-    TitleInput.Size = UDim2.new(0, 333, 0, 16)
-    TitleInput.Position = UDim2.new(0, 18, 0, 12)
-    TitleInput.BackgroundTransparency = 1
-    TitleInput.Text = "Input"
-    TitleInput.Parent = InputTemplate
-
-    local InputFrame = Instance.new("Frame")
-    InputFrame.Name = "InputFrame"
-    InputFrame.Size = UDim2.new(0, 120, 0, 30)
-    InputFrame.Position = UDim2.new(1, -7, 0, 5)
-    InputFrame.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-    InputFrame.Parent = InputTemplate
-
-    -- Add text box for input
-    local InputTextBox = Instance.new("TextBox")
-    InputTextBox.Size = UDim2.new(1, 0, 1, 0)
-    InputTextBox.BackgroundTransparency = 1
-    InputTextBox.Text = ""
-    InputTextBox.Parent = InputFrame
 
     return Settings
 end
@@ -818,13 +852,15 @@ function Aureon:CreateNotifications(parent)
     Title.Position = UDim2.new(0.543, 0, 0, 15)
     Title.BackgroundTransparency = 1
     Title.Text = "Moderator Joined"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
     Title.Parent = Template
 
     local Description = Instance.new("TextLabel")
     Description.Size = UDim2.new(0, 241, 0, 350)
     Description.Position = UDim2.new(0.556, 0, 0.5, 7)
     Description.BackgroundTransparency = 1
-    Description.Text = "We've turned off any features you were using that may increase detection..." -- truncated in document
+    Description.Text = "We've turned off any features you were using that may increase detection..."
+    Description.TextColor3 = Color3.fromRGB(255, 255, 255)
     Description.Parent = Template
 
     local Icon = Instance.new("ImageButton")
@@ -838,6 +874,7 @@ function Aureon:CreateNotifications(parent)
     BlurModule.Size = UDim2.new(1, -21, 1, -21)
     BlurModule.Position = UDim2.new(0.5, 0, 0.5, 0)
     BlurModule.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    BlurModule.BackgroundTransparency = 0.8
     BlurModule.Parent = Template
 
     local UIStroke = Instance.new("UIStroke")
@@ -848,6 +885,7 @@ function Aureon:CreateNotifications(parent)
     Time.Position = UDim2.new(1, -10, 0, 15)
     Time.BackgroundTransparency = 1
     Time.Text = "now"
+    Time.TextColor3 = Color3.fromRGB(255, 255, 255)
     Time.Parent = Template
 
     local Interact = Instance.new("TextButton")
@@ -866,8 +904,8 @@ function Aureon:CreateCustomScriptPrompt(parent)
     CustomScriptPrompt.Name = "CustomScriptPrompt"
     CustomScriptPrompt.Size = UDim2.new(0, 310, 0, 315)
     CustomScriptPrompt.Position = UDim2.new(0.5, 0, 0.5, 0)
-    CustomScriptPrompt.AnchorPoint = UDim2.new(0.5, 0.5)
-    CustomScriptPrompt.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    CustomScriptPrompt.AnchorPoint = Vector2.new(0.5, 0.5)
+    CustomScriptPrompt.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
     CustomScriptPrompt.Parent = parent
 
     local UICorner = Instance.new("UICorner")
@@ -878,6 +916,7 @@ function Aureon:CreateCustomScriptPrompt(parent)
     Title.Position = UDim2.new(0.06, 0, 0.068, 0)
     Title.BackgroundTransparency = 1
     Title.Text = "Import Script"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
     Title.Parent = CustomScriptPrompt
 
     local Close = Instance.new("ImageButton")
@@ -896,6 +935,7 @@ function Aureon:CreateCustomScriptPrompt(parent)
     Subtitle.Position = UDim2.new(0.06, 0, 0.123, 0)
     Subtitle.BackgroundTransparency = 1
     Subtitle.Text = "Import your own script and loadstring for Aureon to use."
+    Subtitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     Subtitle.Parent = CustomScriptPrompt
 
     local UIGradient = Instance.new("UIGradient")
@@ -917,6 +957,7 @@ function Aureon:CreateCustomScriptPrompt(parent)
     IDTextBox.Position = UDim2.new(0.049, 0, 0, 0)
     IDTextBox.BackgroundTransparency = 1
     IDTextBox.Text = ""
+    IDTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     IDTextBox.Parent = IDBox
 
     local DescBox = Instance.new("Frame")
@@ -935,6 +976,7 @@ function Aureon:CreateCustomScriptPrompt(parent)
     DescTextBox.Position = UDim2.new(0.049, 0, 0.127, 0)
     DescTextBox.BackgroundTransparency = 1
     DescTextBox.Text = ""
+    DescTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     DescTextBox.Parent = DescBox
 
     local ScriptBox = Instance.new("Frame")
@@ -953,6 +995,7 @@ function Aureon:CreateCustomScriptPrompt(parent)
     ScriptTextBox.Position = UDim2.new(0.049, 0, 0, 0)
     ScriptTextBox.BackgroundTransparency = 1
     ScriptTextBox.Text = ""
+    ScriptTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     ScriptTextBox.Parent = ScriptBox
 
     local Submit = Instance.new("TextButton")
@@ -961,6 +1004,7 @@ function Aureon:CreateCustomScriptPrompt(parent)
     Submit.Position = UDim2.new(0.675, 0, 0.864, 0)
     Submit.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
     Submit.Text = "Submit"
+    Submit.TextColor3 = Color3.fromRGB(255, 255, 255)
     Submit.Parent = CustomScriptPrompt
 
     local UICornerSubmit = Instance.new("UICorner")
